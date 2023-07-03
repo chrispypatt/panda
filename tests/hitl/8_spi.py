@@ -1,3 +1,4 @@
+import binascii
 import pytest
 import random
 from unittest.mock import patch
@@ -16,6 +17,17 @@ class TestSpi:
     panda.health()
     assert spy.call_count == 2
     mocker.stop(spy)
+
+  def test_protocol_version(self, p):
+    v = p._handle.get_protocol_version()
+
+    uid = binascii.hexlify(v[:12]).decode()
+    assert uid == p.get_uid()
+
+    hwtype = v[12]
+    assert hwtype == ord(p.get_type())
+
+    assert v[-1] == 1
 
   def test_all_comm_types(self, mocker, p):
     spy = mocker.spy(p._handle, '_wait_for_ack')
