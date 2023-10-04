@@ -106,24 +106,6 @@ ensure_health_packet_version = partial(ensure_version, "health", "HEALTH_PACKET_
 
 
 
-def parse_timestamp(dat):
-  a = struct.unpack("HBBBBBB", dat)
-  if a[0] == 0:
-    return None
-
-  try:
-    return datetime.datetime(a[0], a[1], a[2], a[4], a[5], a[6])
-  except ValueError:
-    return None
-
-def unpack_log(dat):
-  return {
-    'id': struct.unpack("H", dat[:2])[0],
-    'timestamp': parse_timestamp(dat[2:10]),
-    'uptime': struct.unpack("I", dat[10:14])[0],
-    'msg': bytes(dat[14:]).decode('utf-8', 'ignore').strip('\x00'),
-  }
-
 class ALTERNATIVE_EXPERIENCE:
   DEFAULT = 0
   DISABLE_DISENGAGE_ON_GAS = 1
@@ -236,6 +218,8 @@ class Panda:
 
   FLAG_SUBARU_GEN2 = 1
   FLAG_SUBARU_LONG = 2
+
+  FLAG_NISSAN_ALT_EPS_BUS = 1
 
   FLAG_GM_HW_CAM = 1
   FLAG_GM_HW_CAM_LONG = 2
@@ -456,7 +440,7 @@ class Panda:
 
     success = False
     # wait up to 15 seconds
-    for _ in range(0, 15*10):
+    for _ in range(15*10):
       try:
         self.connect()
         success = True
@@ -964,7 +948,8 @@ class Panda:
 
   def get_datetime(self):
     dat = self._handle.controlRead(Panda.REQUEST_IN, 0xa0, 0, 0, 8)
-    return parse_timestamp(dat)
+    a = struct.unpack("HBBBBBB", dat)
+    return datetime.datetime(a[0], a[1], a[2], a[4], a[5], a[6])
 
   # ****************** Timer *****************
   def get_microsecond_timer(self):
@@ -1001,15 +986,3 @@ class Panda:
 
   def force_relay_drive(self, intercept_relay_drive, ignition_relay_drive):
     self._handle.controlWrite(Panda.REQUEST_OUT, 0xc5, (int(intercept_relay_drive) | int(ignition_relay_drive) << 1), 0, b'')
-
-  # ****************** Logging *****************
-  def get_logs(self, last_id=None, get_all=False):
-    assert (last_id is None) or (0 <= last_id < 0xFFFF)
-
-    logs = []
-    dat = self._handle.controlRead(Panda.REQUEST_IN, 0xfd, 1 if get_all else 0, last_id if last_id is not None else 0xFFFF, 0x40)
-    while len(dat) > 0:
-      if len(dat) == 0x40:
-        logs.append(unpack_log(dat))
-      dat = self._handle.controlRead(Panda.REQUEST_IN, 0xfd, 0, 0xFFFF, 0x40)
-    return logs
