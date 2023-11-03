@@ -828,7 +828,7 @@ class PandaSafetyTest(PandaSafetyTestBase):
   def test_spam_can_buses(self):
     for bus in range(4):
       for addr in self.SCANNED_ADDRS:
-        if all(addr != m[0] or bus != m[1] for m in self.TX_MSGS):
+        if [addr, bus] not in self.TX_MSGS:
           self.assertFalse(self._tx(make_msg(bus, addr, 8)), f"allowed TX {addr=} {bus=}")
 
   def test_default_controls_not_allowed(self):
@@ -1007,7 +1007,7 @@ class PandaSafetyTest(PandaSafetyTestBase):
             if attr.startswith('TestHonda'):
               # exceptions for common msgs across different hondas
               tx = list(filter(lambda m: m[0] not in [0x1FA, 0x30C, 0x33D], tx))
-            all_tx.append([m[0], m[1], attr] for m in tx)
+            all_tx.append([[m[0], m[1], attr] for m in tx])
 
     # make sure we got all the msgs
     self.assertTrue(len(all_tx) >= len(test_files)-1)
