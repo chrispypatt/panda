@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import random
 import unittest
 
 import panda.tests.safety.common as common
@@ -66,8 +67,8 @@ class Buttons:
 
 class TestFordSafetyBase(common.PandaCarSafetyTest):
   STANDSTILL_THRESHOLD = 1
-  RELAY_MALFUNCTION_ADDR = MSG_IPMA_Data
-  RELAY_MALFUNCTION_BUS = 0
+  RELAY_MALFUNCTION_ADDRS = {0: (MSG_ACCDATA_3, MSG_Lane_Assist_Data1, MSG_LateralMotionControl,
+                                 MSG_LateralMotionControl2, MSG_IPMA_Data)}
 
   FWD_BLACKLISTED_ADDRS = {2: [MSG_ACCDATA_3, MSG_Lane_Assist_Data1, MSG_LateralMotionControl,
                                MSG_LateralMotionControl2, MSG_IPMA_Data]}
@@ -134,7 +135,7 @@ class TestFordSafetyBase(common.PandaCarSafetyTest):
 
   # Standstill state
   def _vehicle_moving_msg(self, speed: float):
-    values = {"VehStop_D_Stat": 1 if speed <= self.STANDSTILL_THRESHOLD else 0}
+    values = {"VehStop_D_Stat": 1 if speed <= self.STANDSTILL_THRESHOLD else random.choice((0, 2, 3))}
     return self.packer.make_can_msg_panda("DesiredTorqBrk", 0, values)
 
   # Current curvature
@@ -385,6 +386,9 @@ class TestFordCANFDStockSafety(TestFordSafetyBase):
 
 
 class TestFordLongitudinalSafetyBase(TestFordSafetyBase):
+  RELAY_MALFUNCTION_ADDRS = {0: (MSG_ACCDATA, MSG_ACCDATA_3, MSG_Lane_Assist_Data1, MSG_LateralMotionControl,
+                                 MSG_LateralMotionControl2, MSG_IPMA_Data)}
+
   FWD_BLACKLISTED_ADDRS = {2: [MSG_ACCDATA, MSG_ACCDATA_3, MSG_Lane_Assist_Data1, MSG_LateralMotionControl,
                                MSG_LateralMotionControl2, MSG_IPMA_Data]}
 
