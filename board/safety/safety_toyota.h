@@ -33,7 +33,7 @@ const CanMsg TOYOTA_TX_MSGS[] = {{0x283, 0, 7}, {0x2E6, 0, 8}, {0x2E7, 0, 8}, {0
                                  {0x750, 0, 8}, // white list 0x750 for Enhanced Diagnostic Request
                                  {0x200, 0, 6}};  // interceptor
 
-AddrCheckStruct toyota_addr_checks[] = {
+RxCheck toyota_rx_checks[] = {
   {.msg = {{ 0xaa, 0, 8, .check_checksum = false, .expected_timestep = 12000U}, { 0 }, { 0 }}},
   {.msg = {{0x260, 0, 8, .check_checksum = true, .expected_timestep = 20000U}, { 0 }, { 0 }}},
   {.msg = {{0x1D2, 0, 8, .check_checksum = true, .expected_timestep = 30000U}, { 0 }, { 0 }}},
@@ -42,10 +42,9 @@ AddrCheckStruct toyota_addr_checks[] = {
   {.msg = {{0x224, 0, 8, .check_checksum = false, .expected_timestep = 25000U},
            {0x226, 0, 8, .check_checksum = false, .expected_timestep = 25000U}, { 0 }}},
 };
-addr_checks toyota_rx_checks = SET_ADDR_CHECKS(toyota_addr_checks);
 
 // safety param flags
-// first byte is for eps factor, second is for flags
+// first byte is for EPS factor, second is for flags
 const uint32_t TOYOTA_PARAM_OFFSET = 8U;
 const uint32_t TOYOTA_EPS_FACTOR = (1U << TOYOTA_PARAM_OFFSET) - 1U;
 const uint32_t TOYOTA_PARAM_ALT_BRAKE = 1U << TOYOTA_PARAM_OFFSET;
@@ -72,12 +71,8 @@ static uint32_t toyota_get_checksum(CANPacket_t *to_push) {
   return (uint8_t)(GET_BYTE(to_push, checksum_byte));
 }
 
-static int toyota_rx_hook(CANPacket_t *to_push) {
-
-  bool valid = addr_safety_check(to_push, &toyota_rx_checks,
-                                 toyota_get_checksum, toyota_compute_checksum, NULL, NULL);
-
-  if (valid && (GET_BUS(to_push) == 2U)) {
+static void toyota_rx_hook(CANPacket_t *to_push) {
+  if (GET_BUS(to_push) == 2U) {
     int addr = GET_ADDR(to_push);
     if (addr == 0x412) {
       bool set_me = (GET_BYTE(to_push, 0) & 0xC0) > 0; // LKAS_STATUS
@@ -96,7 +91,7 @@ static int toyota_rx_hook(CANPacket_t *to_push) {
       }
       set_me_prev = set_me;
     }
-  } else if (valid && (GET_BUS(to_push) == 0U)) {
+  } else if (GET_BUS(to_push) == 0U) {
     int addr = GET_ADDR(to_push);
 
     // get eps motor torque (0.66 factor in dbc)
@@ -163,18 +158,12 @@ static int toyota_rx_hook(CANPacket_t *to_push) {
 
     generic_rx_checks((addr == 0x2E4));
   }
-  return valid;
 }
 
-static int toyota_tx_hook(CANPacket_t *to_send) {
-
-  int tx = 1;
+static bool toyota_tx_hook(CANPacket_t *to_send) {
+  bool tx = true;
   int addr = GET_ADDR(to_send);
   int bus = GET_BUS(to_send);
-
-  if (!msg_allowed(to_send, TOYOTA_TX_MSGS, sizeof(TOYOTA_TX_MSGS)/sizeof(TOYOTA_TX_MSGS[0]))) {
-    tx = 0;
-  }
 
   // Check if msg is sent on BUS 0
   if (bus == 0) {
@@ -182,7 +171,7 @@ static int toyota_tx_hook(CANPacket_t *to_send) {
     // GAS PEDAL: safety check
     if (addr == 0x200) {
       if (longitudinal_interceptor_checks(to_send)) {
-        tx = 0;
+        tx = false;
       }
     }
 
@@ -206,7 +195,7 @@ static int toyota_tx_hook(CANPacket_t *to_send) {
       }
 
       if (violation) {
-        tx = 0;
+        tx = false;
       }
     }
 
@@ -215,7 +204,7 @@ static int toyota_tx_hook(CANPacket_t *to_send) {
       // only allow the checksum, which is the last byte
       bool block = (GET_BYTES(to_send, 0, 4) != 0U) || (GET_BYTE(to_send, 4) != 0U) || (GET_BYTE(to_send, 5) != 0U);
       if (block) {
-        tx = 0;
+        tx = false;
       }
     }
 
@@ -231,7 +220,7 @@ static int toyota_tx_hook(CANPacket_t *to_send) {
 
       // block LTA msgs with actuation requests
       if (lta_request || lta_request2 || (lta_angle != 0) || (setme_x64 != 0)) {
-        tx = 0;
+        tx = false;
       }
     }
 
@@ -241,18 +230,18 @@ static int toyota_tx_hook(CANPacket_t *to_send) {
       desired_torque = to_signed(desired_torque, 16);
       bool steer_req = GET_BIT(to_send, 0U) != 0U;
       if (steer_torque_cmd_checks(desired_torque, steer_req, TOYOTA_STEERING_LIMITS)) {
-        tx = 0;
+        tx = false;
       }
       // When using LTA (angle control), assert no actuation on LKA message
       if (toyota_lta && ((desired_torque != 0) || steer_req)) {
-        tx = 0;
+        tx = false;
       }
     }
 
     // AleSato's automatic brakehold
     if (addr == 0x344) {
       if(vehicle_moving || gas_pressed || !acc_main_on) {
-        tx = 0;
+        tx = false;
       }
     }
   }
@@ -260,7 +249,7 @@ static int toyota_tx_hook(CANPacket_t *to_send) {
   return tx;
 }
 
-static const addr_checks* toyota_init(uint16_t param) {
+static safety_config toyota_init(uint16_t param) {
   toyota_alt_brake = GET_FLAG(param, TOYOTA_PARAM_ALT_BRAKE);
   toyota_stock_longitudinal = GET_FLAG(param, TOYOTA_PARAM_STOCK_LONGITUDINAL);
   toyota_dbc_eps_torque_factor = param & TOYOTA_EPS_FACTOR;
@@ -270,7 +259,7 @@ static const addr_checks* toyota_init(uint16_t param) {
 #else
   toyota_lta = false;
 #endif
-  return &toyota_rx_checks;
+  return BUILD_SAFETY_CFG(toyota_rx_checks, TOYOTA_TX_MSGS);
 }
 
 static int toyota_fwd_hook(int bus_num, int addr) {
@@ -302,6 +291,7 @@ const safety_hooks toyota_hooks = {
   .init = toyota_init,
   .rx = toyota_rx_hook,
   .tx = toyota_tx_hook,
-  .tx_lin = nooutput_tx_lin_hook,
   .fwd = toyota_fwd_hook,
+  .get_checksum = toyota_get_checksum,
+  .compute_checksum = toyota_compute_checksum,
 };
