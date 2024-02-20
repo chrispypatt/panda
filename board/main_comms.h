@@ -9,8 +9,8 @@ int get_health_pkt(void *dat) {
   struct health_t * health = (struct health_t*)dat;
 
   health->uptime_pkt = uptime_cnt;
-  health->voltage_pkt = adc_get_mV(ADCCHAN_VIN) * VIN_READOUT_DIVIDER;
-  health->current_pkt = current_board->read_current();
+  health->voltage_pkt = current_board->read_voltage_mV();
+  health->current_pkt = current_board->read_current_mA();
 
   // Use the GPIO pin to determine ignition or use a CAN based logic
   health->ignition_line_pkt = (uint8_t)(current_board->check_ignition());
@@ -28,14 +28,14 @@ int get_health_pkt(void *dat) {
   health->alternative_experience_pkt = alternative_experience;
   health->power_save_enabled_pkt = power_save_status == POWER_SAVE_STATUS_ENABLED;
   health->heartbeat_lost_pkt = heartbeat_lost;
-  health->safety_rx_checks_invalid = safety_rx_checks_invalid;
+  health->safety_rx_checks_invalid_pkt = safety_rx_checks_invalid;
 
-  health->spi_checksum_error_count = spi_checksum_error_count;
+  health->spi_checksum_error_count_pkt = spi_checksum_error_count;
 
   health->fault_status_pkt = fault_status;
   health->faults_pkt = faults;
 
-  health->interrupt_load = interrupt_load;
+  health->interrupt_load_pkt = interrupt_load;
 
   health->fan_power = fan_state.power;
   health->fan_stall_count = fan_state.total_stall_count;
@@ -360,7 +360,7 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
       break;
     // **** 0xe5: set CAN loopback (for testing)
     case 0xe5:
-      can_loopback = (req->param1 > 0U);
+      can_loopback = req->param1 > 0U;
       can_init_all();
       break;
     // **** 0xe6: set custom clock source period
