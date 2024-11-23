@@ -250,13 +250,14 @@ static bool toyota_tx_hook(const CANPacket_t *to_send) {
     }
 
     // AEB: block all actuation. only used when DSU is unplugged
-    if (addr == 0x283) {
-      // only allow the checksum, which is the last byte
-      bool block = (GET_BYTES(to_send, 0, 4) != 0U) || (GET_BYTE(to_send, 4) != 0U) || (GET_BYTE(to_send, 5) != 0U);
-      if (block) {
-        tx = false;
-      }
-    }
+    // if (addr == 0x283) {
+    //   // only allow the checksum, which is the last byte
+    //   bool block = (GET_BYTES(to_send, 0, 4) != 0U) || (GET_BYTE(to_send, 4) != 0U) || (GET_BYTE(to_send, 5) != 0U);
+    //   if (block) {
+    //     tx = false;
+    //   }
+    // }
+    // AleSato's automatic brakehold
 
     // STEERING_LTA angle steering check
     if (addr == 0x191) {
