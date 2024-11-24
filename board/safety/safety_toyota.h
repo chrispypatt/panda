@@ -253,9 +253,7 @@ static bool toyota_tx_hook(const CANPacket_t *to_send) {
     if (addr == 0x283) {
       // only allow the checksum, which is the last byte
       bool block = (GET_BYTES(to_send, 0, 4) != 0U) || (GET_BYTE(to_send, 4) != 0U) || (GET_BYTE(to_send, 5) != 0U);
-       // AleSato's automatic brakehold
-      // if (block) {
-      if (block && vehicle_moving) {
+      if (block) {
         tx = false;
       }
     }
@@ -441,7 +439,6 @@ static int toyota_fwd_hook(int bus_num, int addr) {
     bool is_acc_msg = (addr == 0x343);
     // Block AEB when stoped to use as a automatic brakehold
     bool is_aeb_msg = (addr == 0x344 && (alternative_experience & ALT_EXP_ALLOW_AEB));
-    is_aeb_msg = (addr == 0x283 && (alternative_experience & ALT_EXP_ALLOW_AEB));
     bool block_msg = is_lkas_msg || (is_acc_msg && !toyota_stock_longitudinal) || (is_aeb_msg && !vehicle_moving && acc_main_on && !gas_pressed);
     if (!block_msg) {
       bus_fwd = 0;
