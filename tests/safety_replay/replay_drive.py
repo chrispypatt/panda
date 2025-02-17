@@ -3,7 +3,7 @@ import argparse
 import os
 from collections import Counter, defaultdict
 
-from panda.python import ALTERNATIVE_EXPERIENCE
+from opendbc.safety import ALTERNATIVE_EXPERIENCE
 from panda.tests.libpanda import libpanda_py
 from panda.tests.safety_replay.helpers import package_can_msg, init_segment
 
